@@ -1,0 +1,40 @@
+<html>
+ <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>PCHIP | Flot</title>
+
+	<!-- include PCHIP-JS library from public dropbox folder -->
+	<script language="javascript" type="text/javascript" src="pchip.js"></script>
+	<!-- include JQuery from google -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js"></script>
+	<!-- include Flot -->
+	<script language="javascript" type="text/javascript" src="https://people.iola.dk/olau/flot/jquery.flot.js"></script>
+
+ </head>
+ <body>
+  <h1>PCHIP Example: Using Flot</h1>
+  <div id="placeholder" style="width:600px;height:300px"></div>
+
+<script type="text/javascript">
+
+//fill an array with random values
+var pts = [];
+for(var i = 0; i < 10; i++){
+	pts.push([i, Math.random() * 5]);
+}
+
+var sampleRate = 20.0; //per unit on x-axis
+/* use PCHIP library */
+var fit1 = PCHIP.fit(pts,sampleRate); //monotone is default
+var fit2 = PCHIP.fit(pts,sampleRate,"shape_preserving"); 
+
+//plot points and fit
+jQuery.plot(jQuery("#placeholder"), [
+	{ data: fit1, label : "monotone",         lines : { show: true } },
+	{ data: fit2, label : "shape preserving", lines : { show: true } },
+	{ data: pts,  label : "input data",       points: { show: true } }
+], {});
+
+</script>
+
+</body></html>

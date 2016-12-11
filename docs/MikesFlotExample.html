@@ -1,0 +1,214 @@
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+ <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Flot Examples</title>
+    <link href="flot/layout.css" rel="stylesheet" type="text/css">
+    <script language="javascript" type="text/javascript" src="flot/jquery.js"></script>
+    <script language="javascript" type="text/javascript" src="flot/jquery.flot.js"></script>
+ </head>
+    <body>
+    <h1>Flot Examples: Drag and Push With Constraints</h1>
+	<p>Click to grab a point, move it to desired location, then click again to release it.</p>
+    <div id="placeholder" style="width:600px;height:300px"></div>
+
+    <p>One of the goals of Flot is to support user interactions. Try
+    pointing and clicking on the points.</p>
+
+    <p id="hoverdata">Mouse hovers at
+    (<span id="x">0</span>, <span id="y">0</span>). <span id="clickdata"></span></p>
+
+    <p>A tooltip is easy to build with a bit of jQuery code and the
+    data returned from the plot.</p>
+
+    <p><input id="enableTooltip" type="checkbox">Enable tooltip</p>
+
+<script type="text/javascript">
+//$(function () { //removed namespace wrapper
+    var dragItem = null;
+    var oar = [], ptv = [];
+    var m1 = -1.0, b1 = 100;
+    var m2 = -0.5, b2 = 50;
+    
+    for (var i = 0; i < 105; i += 5) {
+        ptv.push([i, m1*i+b1]);
+        oar.push([i, m2*i+b2]);
+    }
+
+    var plot = $.plot($("#placeholder"),
+           [ { data: oar, label: "oar"}, { data: ptv, label: "ptv" } ], {
+               series: {
+                   lines: { show: true },
+                   points: { show: true }
+               },
+               grid: { hoverable: true, clickable: true, autoHighlight: false},
+               yaxis: { min: 0.0, max: 100.0 }
+             });
+
+    function showTooltip(x, y, contents) {
+        $('<div id="tooltip">' + contents + '</div>').css( {
+            position: 'absolute',
+            display: 'none',
+            top: y + 5,
+            left: x + 5,
+            border: '1px solid #fdd',
+            padding: '2px',
+            'background-color': '#fee',
+            opacity: 0.80
+        }).appendTo("body").fadeIn(200);
+    }
+
+    var previousPoint = null;
+    $("#placeholder").bind("plothover", function (event, pos, item) {
+        $("#x").text(pos.x.toFixed(2));
+        $("#y").text(pos.y.toFixed(2));
+
+		//relocate current point:
+		if(dragItem){// add check for mousedown if for drag only
+			
+			//copy old data:
+			var newData = plot.getData();
+			
+			//get new point location:
+			var X = pos.x;//.toFixed(2);
+			var Y = pos.y;//.toFixed(2);
+
+			//item info:
+			var idx = dragItem.dataIndex;
+			var series = dragItem.seriesIndex; 
+			newData[series].data[idx][0] = X;
+			newData[series].data[idx][1] = Y;
+
+			/*apply constraints here*/
+
+			//look right for overlapping points and PUSH them:
+			for(var i = idx+1; i < newData[series].data.length; i++){
+				//if x value of elements after the current value are less
+				if( newData[series].data[i][0] < X ){  
+					newData[series].data[i][0] = X;	
+				}
+				if( newData[series].data[i][1] > Y ){  
+					newData[series].data[i][1] = Y;	
+				}	
+			}
+			
+			//now look left and PUSH
+			for(i = idx-1; i >= 0; i--){
+				//if x value of elements after the current value are less
+				if( newData[series].data[i][0] > X ){  
+					newData[series].data[i][0] = X;	
+				}
+				if( newData[series].data[i][1] < Y ){  
+					newData[series].data[i][1] = Y;	
+				}	
+			}
+			
+			//redraw plot
+			cleanAndPlotData(plot,series);
+		}
+
+        if ($("#enableTooltip:checked").length > 0) {
+            if (item) {
+                if (previousPoint != item.dataIndex) {
+                    previousPoint = item.dataIndex;
+                    
+                    $("#tooltip").remove();
+                    var x = item.datapoint[0].toFixed(2),
+                        y = item.datapoint[1].toFixed(2);
+                    
+                    showTooltip(item.pageX, item.pageY,
+                                item.series.label + " of " + x + " = " + y);
+                }
+            }
+            else {
+                $("#tooltip").remove();
+                previousPoint = null;   
+                s$("#placeholder").onmousemove = null;        
+            }
+        }
+    });//end bind
+
+    $("#placeholder").bind("plotclick", function (event, pos, item) {
+        if (item) {
+            $("#clickdata").text("You clicked point " + item.dataIndex + " in " + item.series.label + ".");
+            //plot.highlight(item.series, item.datapoint);
+			
+			if(dragItem === null){
+				dragItem = item;//set drag item
+				//plot.highlight(dragItem.series, dragItem.datapoint);
+				previousItem = item;
+			}
+			else{//unselect item
+				//plot.unhighlight(dragItem.series, dragItem.datapoint);
+				
+				//--clean up data--//
+				
+				var seriesIdx = parseInt(dragItem.seriesIndex, 10);
+				dragItem = null;
+
+				//cleanAndPlotData(plot,seriesIdx); //set cleaned data
+			}
+        }
+        
+    });//end bind
+
+function cleanAndPlotData(plot,series){
+	/** applies constraints to series within plot and re-plots data **/
+	
+	var cleanData = plot.getData();
+	
+	for( var i = 0; i<cleanData[series].data.length-1; i++ ){
+		//caution one-pass clean may be buggy
+		iX = cleanData[series].data[i][0];
+		iY = cleanData[series].data[i][1];
+		
+		//find duplicate points and delete them
+		if( iX == cleanData[series].data[i+1][0] &&
+			iY == cleanData[series].data[i+1][1]     ){
+			
+			if(dragItem === null){
+				cleanData[series].data.splice(i,1);//remove 1 element at index 'i'
+			}
+			//we are dragging be careful...
+			else{
+				//only delete points outside of range of dragIndex
+				if( dragItem.dataIndex != i+1 & dragItem.dataIndex != i ){
+					if(dragItem.dataIndex > i){
+						dragItem.dataIndex--; //decriment index since we are loosing data below
+					}
+					cleanData[series].data.splice(i,1);//remove 1 element at index 'i'
+				}
+			}
+		}
+
+		//make sure data points are greater than zero or less than 100
+		if( iY > 100.0 ){
+			cleanData[series].data[i][1] = 100.0;
+		}
+		else if( iY < 0.0 ){
+			cleanData[series].data[i][1] = 0.0;
+		}
+		//no neg. x values either
+		if( iX < 0.0 ){
+			cleanData[series].data[i][0] = 0.0;
+		}
+	}
+	
+	//clamp first and last value to 0
+	var len = cleanData[series].data.length;
+	cleanData[series].data[len-1][1] = 0; //last point has 0 y value
+	cleanData[series].data[0][0] = 0; //first point has 0 x value
+	
+	plot.setData(cleanData);
+	plot.draw();
+}
+
+
+    
+//});
+
+</script>
+
+ </body>
+</html>

@@ -1,0 +1,240 @@
+<!doctype HTML>
+<html>
+<head>
+	<title>Quantum Monte Carlo Simulation</title>
+
+<style>
+
+.bars rect {
+  fill: steelblue;
+}
+
+.axis text {
+  font: 10px sans-serif;
+}
+
+.axis path, .axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+</style>
+
+<script type="text/javascript">
+//variables that should be user defined
+var BigN = 10000;		//number of sampled sweeps
+var LEN = 5000;         //number of points in path
+var OMEGA = 0.15;		//frequency
+var OMEGA_SQ = Math.pow(OMEGA,2);
+var FIRST_TAU = 2;		//Offset to begin C(tau) calculations
+var LAST_TAU = 12;		//Final offest for C(tau) calculations
+
+
+var DISP_SIZE_X = 720; //pixels
+var DISP_SIZE_Y = 320;
+var BUFFER = 30; //pixels
+
+var NBINS = 257;
+var X_MAX = 10.0; //bounds of histogram
+
+var BIN_WIDTH;
+var HIST = [];//new Array();
+var BINS = [];//new Array();
+var HIST_MAX;
+
+var E = 0.0;
+var E_sq = 0.0;
+
+var PROCESS = null;
+var TIC = new Date().getTime();
+
+var PLOT_SCALE;
+var DISPLAY;
+var PI2 = 2.0*Math.PI;
+
+//the correlator array C(tau)
+var CORRS_1 = [];
+var CORRS_2 = [];
+var ExpX2 = 0.0;
+
+CORRS_1.length = LAST_TAU-FIRST_TAU+1;
+CORRS_2.length = CORRS_1.length;
+
+//initialize correlator array
+for(i=0; i < CORRS_1.length; i++){
+	CORRS_1[i] = 0.0;
+	CORRS_2[i] = 0.0;
+}
+	
+
+function start(){
+	DATA.innerHTML = "Warming Up...";
+	
+
+	if(typeof(Worker) !== "undefined"){ //make sure browser supports worker
+		if(PROCESS === null){ //make sure worker isn't already running
+			PROCESS = new Worker("qmc_v2.js"); //global
+			
+			PROCESS.onmessage = function(event){
+
+				//var message = event.data; //path data
+				updateCalcs(event.data.x, event.data.N);
+				
+				DATA.innerHTML= "E_0 = " + String(E_ave).slice(0,7) + " +/- " + String(E_error).slice(0,7) + " <br />" +
+								"E_1 - E_0 = " + String(delta_E1).slice(0,7) + "<br />" +
+								"E_2 - E_0 = " + String(delta_E2).slice(0,7) + "<br />";
+				
+				//output actual frame rate
+				var tempTic = new Date().getTime();
+				MESSAGE_COUNT++;
+				DATA.innerHTML += "(" + Math.round(MESSAGE_COUNT*100.0*1000.0/(tempTic-TIC)) + ' paths/sec)  ';
+				clearDisplay();
+				updateHistogram(event.data.x);
+			};
+
+			TIC = new Date().getTime(); //start time
+			MESSAGE_COUNT = 0.0;
+			PROCESS.postMessage({'init':0});
+
+		}else{
+			alert('Process is already running.');
+		}
+	}
+	else{
+		alert('Sorry! No Web Worker support... try chrome, firefox, or safari');
+	}
+}
+
+function updateCalcs(x,N){
+	n = LEN;	
+
+	//update energy
+	while(--n){
+		E += Math.pow(x[n],2);
+		E_sq += Math.pow(x[n],4);
+	}
+	//update correlators
+	CORR_Update(x);//,CORRS,FIRST_TAU,LAST_TAU);
+	
+	//UPDATE GLOBALS!
+	E_ave = E/LEN*OMEGA_SQ/(BigN - N);
+	Esq_ave = E_sq/LEN*Math.pow(OMEGA,4)/(BigN - N);
+	E_error = Math.sqrt((Esq_ave - E_ave*E_ave)/(BigN - N - 1));
+	delta_E1 = CORR_delta_Ave(CORRS_1,0.0); //E1-E0
+	delta_E2 = CORR_delta_Ave(CORRS_2,E/(BigN - N)); //E2-E0 the correction term is <x^2> which = E
+}
+
+function CORR_Update(x){
+	var c=0; //corrs index
+	var i;   //counter
+	var N;   //counter
+	for(var tau=FIRST_TAU; tau<=LAST_TAU; tau++){
+		N = LEN-tau; //don't let 'i' go overshoot CORRS length
+		for(i=0; i<N; i++){
+			CORRS_1[c] += x[i]*x[i+tau];
+			CORRS_2[c] += Math.pow(x[i],2)*Math.pow(x[i+tau],2);
+		}
+		//for now we ignore ring condition
+		c++; //move to next correlator index
+	}
+}
+
+function CORR_delta_Ave(corrs,correction){
+	//Here we calculate the average DELTA E values using the correlator approach
+    correction = correction*correction/LEN; //here we square the correction (<x^2>^2)
+	var i;
+	var N = corrs.length-1;
+	var sum = 0.0;
+	for(i=0; i<N;i++){
+		sum += -Math.log( (corrs[i+1]-correction)/(corrs[i]-correction) ); //notice that all averaging denominators cancel here
+	}
+	return sum/N;
+}
+
+
+
+function stop(){
+	if(PROCESS !== null){
+		PROCESS.terminate();
+		PROCESS = null;
+	}else{
+		alert('No process running.');
+	}
+}
+
+function initialize(){
+	DATA = document.getElementById("DATA");
+	var c = document.getElementById("DISPLAY");
+	c.width = DISP_SIZE_X;
+	c.height = DISP_SIZE_Y;
+	DISPLAY = c.getContext("2d"); //global
+	//PLOT_SCALE = (DISP_SIZE/2-BUFFER);
+
+	var n = NBINS;
+	BIN_WIDTH = 2.0*X_MAX/(n-1.0);
+	for(n = 0; n<NBINS; n++ ){
+		BINS[n] = -X_MAX + n*BIN_WIDTH;
+		HIST[n] = 0.0;
+	}
+	HIST_MAX = 0.0;
+}
+
+function clearDisplay(){
+	DISPLAY.clearRect(0,0,DISP_SIZE_X,DISP_SIZE_Y);
+}
+
+function reset(){
+	clearDisplay();
+	initialize();
+}
+
+function updateHistogram(x){
+	//add points to bin
+	var	len = x.length;
+	var idx;
+	var i;
+	for(i=0; i<len;i++){
+		idx = Math.floor( (x[i]+X_MAX)/BIN_WIDTH );
+		if(idx >=0 && idx < NBINS){
+			HIST[idx]++;
+		}
+	}
+
+	for(i=0; i<NBINS;i++){
+		if (HIST[i] > HIST_MAX){
+			HIST_MAX = HIST[i];
+		}
+	}
+	
+	for(i=0; i<NBINS; i++){
+		DISPLAY.beginPath();
+		DISPLAY.fillStyle="black";
+		DISPLAY.arc(
+			(i+0.5)/NBINS*DISP_SIZE_X, //x position
+			(1.0-HIST[i]/HIST_MAX)*DISP_SIZE_Y,     //y position
+			4.0, //radius
+			0.0, PI2 //theta range
+		);
+		DISPLAY.closePath();
+		DISPLAY.fill();
+	}
+
+}
+
+</script>
+</head>
+
+<body onload="initialize()">
+This app runs the Quantum Monte Carlo simulation of the 1D Harmonic oscillator and computes the ground state wave
+function and the first excited state energy.<br />
+
+<button onClick="start()">Start</button>
+<button onClick="stop()">Stop</button>
+<button onClick="reset()">Reset</button>
+<div id='DATA'></div>
+<br />
+<canvas id="DISPLAY" style="border:1px solid #c3c3c3;/*background-color:black;*/">No HTML5!</canvas>
+
+</body>
+</html>

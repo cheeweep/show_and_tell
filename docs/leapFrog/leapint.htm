@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>LeapFrogJS Integrator</title>
+
+<script type="text/javascript">
+
+//globals
+var DISP_SIZE = 512; //pixels
+var BUFFER = 30; //pixels
+var PLOT_SCALE;
+
+var PROCESS = null;
+var DISPLAY;
+var SHOW_HISTORY;
+var DATA;
+var PI2 = 2.0*Math.PI;
+var TIC = new Date().getTime();
+
+function start(){
+
+	if(typeof(Worker) !== "undefined"){ //make sure browser supports worker
+		if(PROCESS == null){ //make sure worker isn't already running
+			PROCESS = new Worker("leapint.js"); //global
+			
+			PROCESS.onmessage = function(event){
+				
+				//output actual frame rate
+				var tempTic = new Date().getTime();
+				DATA.innerHTML = Math.round(1000.0/(tempTic-TIC)) + ' Hz';
+				TIC = tempTic;
+
+				p = event.data; //planets
+				if(!SHOW_HISTORY){
+					reset();
+				}
+				for( var i=0; i<p.length; i++){
+					DISPLAY.beginPath();
+					DISPLAY.fillStyle=p[i].color;
+					DISPLAY.arc(
+						p[i].X*PLOT_SCALE + DISP_SIZE/2, //x position
+						-p[i].Y*PLOT_SCALE + DISP_SIZE/2, //y position
+						p[i].size/2, //radius
+						0.0, PI2 //theta range
+					);
+					DISPLAY.closePath();
+					DISPLAY.fill();
+					
+				}
+			}
+
+			var f = parseFloat(document.getElementById('frequency').value);
+			var ts = parseFloat(document.getElementById('timestep').value);
+			var rr = parseInt(document.getElementById('report').value);
+			SHOW_HISTORY = document.getElementById('history').checked;
+			eval(document.getElementById('input').value);
+			PROCESS.postMessage({'init':{time_step:ts, interval:1000/f, report:rr},'planets':planets});
+
+		}else{
+			alert('Process is already running.');
+		}
+	}
+	else{
+	  alert('Sorry! No Web Worker support... try chrome, firefox, or safari');
+	}
+}
+
+function stop(){
+	if(PROCESS != null){
+		PROCESS.terminate();
+		PROCESS = null;
+	}else{
+		alert('No process running.')
+	}
+}
+
+function initialize(){
+	//Canvas refs. (global)
+	var c = document.getElementById("DISPLAY");
+	DATA = document.getElementById("DATA");
+	c.width = DISP_SIZE;
+	c.height = DISP_SIZE;
+	DISPLAY = c.getContext("2d"); //global
+	set_scale(1.8); //set scale in AU
+	drawSun();
+	//DATA.innerHTML +='position, velocity, time\n';
+	//ctx.strokeStyle="black";
+	//ctx.beginPath();
+	//ctx.arc(0,0,cSize,0.0,Math.PI*0.5);
+	//ctx.stroke();
+	//ctx.fillStyle="red";
+}
+
+function drawSun(){
+	DISPLAY.beginPath();
+	DISPLAY.fillStyle="yellow";
+	DISPLAY.arc(DISP_SIZE/2,DISP_SIZE/2,PLOT_SCALE/20,0.0,PI2);
+	DISPLAY.closePath();
+	DISPLAY.fill();
+}
+
+function reset(){
+	DISPLAY.clearRect(0,0,DISP_SIZE,DISP_SIZE);
+	drawSun();
+}
+
+function resize(){
+	var newAU = prompt('Please input scale (AU) for the viewer:');
+	if(newAU){
+		set_scale(newAU);
+		reset();
+	}
+}
+
+function toggle_history(){
+	if(SHOW_HISTORY){
+		SHOW_HISTORY = false;
+	}else{
+		SHOW_HISTORY = true;
+	}
+}
+
+function set_scale(AU){
+	PLOT_SCALE = (DISP_SIZE/2-BUFFER)/AU;
+}
+
+</script>
+
+</head>
+<body onLoad="initialize()">
+	Refresh Freq. (Hz):<input id='frequency' type='text' value='30' size='3' /><!--br /-->
+	Calcs. per Refresh:<input id='report' type='text' value='100' size='3' /><br />
+	Timestep(?):<input id='timestep' type='text' value='0.0005' size='4' /><!--br /-->
+	<input id='history' type='checkbox' onclick='toggle_history()'/>Show History
+	
+	<button onClick="start()">Start</button>
+	<button onClick="stop()">Stop</button>
+	<button onClick="reset()">Reset</button>
+	<button onClick="resize()">Resize</button><br />
+	
+	<canvas id="DISPLAY" style="border:1px solid #c3c3c3;background-color:black;">No HTML5!</canvas>
+	
+	<div id="DATA"></div>
+
+	Input:<br /><textarea id='input' rows='10' cols='90'>
+planets=[
+{name: 'mercury', perihelion: 0.307499, eccentricity: 0.205630, size: 4, color: 'gray' },
+{name: 'venus', perihelion: 0.718440, eccentricity: 0.006756, size: 5, color: 'white' },
+{name: 'earth', perihelion: 0.98329134, eccentricity: 0.01671123, size: 8, color: 'blue' },
+{name: 'mars', perihelion: 1.381497, eccentricity: 0.093315, size: 6, color: 'red' },
+];</textarea>
+</body>
+</html>
