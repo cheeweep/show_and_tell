@@ -1,0 +1,22 @@
+{
+  "name": "pchip",
+  "version": "1.0.0",
+  "description": "pchip for JavaScript",
+  "main": "pchip.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheeweep/show_and_tell.git"
+  },
+  "keywords": [
+    "pchip"
+  ],
+  "author": "Michael Folkerts and Chee Wee Phua",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cheeweep/show_and_tell/issues"
+  },
+  "homepage": "https://github.com/cheeweep/show_and_tell#readme"
+}
