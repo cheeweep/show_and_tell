@@ -1,16 +1,6 @@
 // pchip for JavaScript
 // Sourced from https://github.com/fizxmike/show_and_tell/blob/master/pchip.js
-((root, factory) => {
-  if (typeof exports === 'object' && typeof require === 'function') {
-    module.exports = factory();
-    /* eslint-disable no-undef */
-  } else if (typeof define === 'function' && define.amd) {
-    define('pchip', [], factory);
-    /* eslint-enable no-undef */
-  } else {
-    window.pchip = factory();
-  }
-})(this, () => ({
+module.exports = {
 /*
  * Author: Michael Folkerts (http://bit.ly/folkerts)
  * Date: July 2012
@@ -224,4 +214,4 @@
     }
     return numPts;
   }
-}));
+};

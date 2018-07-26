@@ -1,6 +1,6 @@
 {
   "name": "pchip",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "pchip for JavaScript",
   "main": "pchip.js",
   "scripts": {
